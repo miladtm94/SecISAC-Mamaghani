@@ -1,216 +1,238 @@
-# SecISAC: Secure ISAC Game — MATLAB Simulation Codebase
+# SecureISAC-UAV-DRL
 
-> **Companion code for:**
-> M. T. Mamaghani, X. Zhou, N. Yang, and A. L. Swindlehurst, "Securing Integrated Sensing and Communication Against a Mobile Adversary: A Stackelberg Game With Deep Reinforcement Learning," *IEEE Journal on Selected Areas in Communications*, vol. 44, pp. 942–958, 2026. DOI: [10.1109/JSAC.2025.3611404](https://doi.org/10.1109/JSAC.2025.3611404)
+**Deep Reinforcement Learning for Secure UAV Trajectory Design in ISAC Systems**
 
-[![MATLAB](https://img.shields.io/badge/MATLAB-R2022b%2B-blue)](https://www.mathworks.com/)
-[![CVX](https://img.shields.io/badge/CVX-2.2-orange)](http://cvxr.com/cvx/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+This repository contains the MATLAB simulation code for the paper:
 
----
+> *"Security-Aware UAV Trajectory Design for Integrated Sensing and Communication Systems via Deep Reinforcement Learning"*
 
-## Overview
-
-This repository provides the full MATLAB simulation code for a **Secure Integrated Sensing and Communication (ISAC)** system modelled as a two-player game:
-
-- **Player 1 (Radar Base Station / R-BS):** Jointly optimizes downlink communication beamforming matrices **V**, radar sensing covariance **W**, and uplink user power allocation **P** to minimise total network power consumption (NPC) subject to physical-layer security and sensing quality constraints.
-- **Player 2 (UAV):** Learns an optimal 3-D trajectory via a Markov Decision Process (MDP) / reinforcement learning framework to maximise a utility that trades off communication/sensing quality against flight power.
-
-Key features implemented:
-- **Successive Convex Approximation (SCA)** for the non-convex resource allocation problem (solved via CVX/SDP)
-- **Rician channel model** with LoS probability for both communication and sensing links
-- **Cramér–Rao Lower Bound (CRLB)**-based radar sensing constraint
-- **Physical-layer secrecy** constraints on both uplink and downlink secrecy rates (UCSR / DCSR)
-- **Artificial noise (AN)** jamming beamformer as a design variable
-- UAV **flight power model** (blade profile + parasitic + climb + induced)
-- Benchmark comparison: *Proposed* (with AN) vs *Without AN*
+The code implements a Double DQN (DDQN) agent that jointly optimises the UAV trajectory and physical-layer resource allocation to maximise an ISAC utility while minimising flight power, subject to uplink/downlink secrecy, CRLB-based sensing, and obstacle avoidance constraints.
 
 ---
 
 ## Repository Structure
 
 ```
-SecISAC-Mamaghani/
-├── README.md                        ← This file
-├── CITATION.cff                     ← Citation metadata (GitHub-standard)
-├── setup.m                          ← Run once to add all paths to MATLAB path
+SecureISAC-UAV-DRL/
 │
-├── src/
-│   ├── config/
-│   │   ├── sysParams.m              ← Global system parameters (antennas, SNR, thresholds …)
-│   │   └── mdpParams.m              ← UAV / MDP grid and flight parameters
-│   │
-│   ├── channels/
-│   │   ├── simulateChannels.m       ← Wrapper: generates all comm. channels for one snapshot
-│   │   ├── ricianChannel.m          ← Rician fading channel vector generator
-│   │   ├── sensingChannel.m         ← Radar sensing matrix A_0 and path-loss zeta_0
-│   │   └── probLoS.m                ← ITU/3GPP urban LoS probability model
-│   │
-│   ├── optimization/
-│   │   ├── optimizeResources.m      ← Main SCA solver (CVX SDP) — core contribution
-│   │   ├── initFeasible.m           ← Finds a strictly feasible starting point via CVX
-│   │   ├── initSlackVars.m          ← Computes feasible initial slack variable values
-│   │   └── taylorLinearize.m        ← First-order Taylor linearization helper (x²/y)
-│   │
-│   ├── metrics/
-│   │   ├── computeMetrics.m         ← UCSR, DCSR, CRLB, and individual SINRs
-│   │   └── calcPower.m              ← Decomposes {V,W,P} into [DL-power, AN-power, UL-power]
-│   │
-│   ├── uav/
-│   │   ├── uavFlightPower.m         ← Rotary-wing UAV power model (horizontal + vertical flight)
-│   │   ├── computeUAVUtility.m      ← Episode-level UAV utility U2 over a trajectory
-│   │   └── computeNetworkCost.m     ← Converged NPC (U1) for a given UAV position
-│   │
-│   └── utils/
-│       ├── fillToLength.m           ← Pads a convergence vector to a fixed length
-│       ├── findThresholds.m         ← Maps rho_ul → feasible (k3, k4) threshold pairs
-│       ├── buildTrajFilename.m      ← Builds MAT filename for episode trajectory results
-│       └── buildResultsPath.m       ← Builds full path for saving trained-agent MAT files
+├── main.m                   ← Entry point: train & simulate the DDQN agent
+├── setup.m                  ← Run once per session to add all paths
 │
-├── scripts/
-│   ├── script_convergencePlot.m     ← Fig: SCA convergence (NPC, UCSR, DCSR, CRLB vs iter)
-│   ├── script_cnrSweepPlot.m        ← Fig: NPC & power vs clutter-to-noise ratio (CNR)
-│   ├── script_benchmarkComparison.m ← Fig: Proposed vs Without-AN (convergence comparison)
-│   └── script_utilityEpisodePlot.m  ← Fig: UAV utility U2 vs training episode (RL results)
+├── config/
+│   ├── sysParams.m          ← Physical-layer constants (antenna, channel, power)
+│   └── MDPsimulationParams.m← Gridworld definition (grid size, UAV speed, N)
 │
-└── data/
-    └── .gitkeep                     ← Place myGroundTerminalDist.mat and result MAT files here
+├── environment/             ← MDP environment (MATLAB RL Toolbox)
+│   ├── createEnv.m          ← Builds rlFunctionEnv with discrete action space
+│   ├── stepFunctionD.m      ← One MDP step: move, check constraints, compute reward
+│   ├── resetFunction.m      ← Episode initialisation
+│   ├── rewardFunc.m         ← Reward shaping: main + distance + loop penalties
+│   ├── getMainReward.m      ← Reward from buffer: U1 utility and P_f
+│   ├── getmilestoneReward.m ← Milestone reward along path to goal
+│   ├── detectLoop.m         ← Loop detection (recent position window)
+│   ├── detectLoopTraj.m     ← Trajectory-level loop detection
+│   └── checkTrajConstraints.m← Post-hoc constraint verification
+│
+├── agent/
+│   └── createDDQNAgent.m    ← DDQN agent: Q-network, epsilon-greedy, replay buffer
+│
+├── optimization/            ← Resource optimisation (SCA-based, offline)
+│   ├── bufferCalc.m         ← [OFFLINE] Builds myBuffer.mat — DO NOT re-run lightly
+│   ├── solveOptimization.m  ← Per-location: channel → SCA → metrics
+│   ├── OptimResources.m     ← SCA problem for V, W, P (downlink / radar / uplink)
+│   ├── OptimResources_Clutter_WithoutAN.m ← Variant: clutter, no AN
+│   ├── power_optimization.m ← Wrapper: feasible init + SCA iterations
+│   ├── feasible_initialization.m ← Warm-start for SCA
+│   ├── initializationSCA_clutterComp_withoutAN.m
+│   ├── initFeasible.m
+│   ├── initSlackVars.m
+│   ├── checkFeasibility.m   ← Validates SCA constraint satisfaction
+│   ├── rank1_approx.m       ← Rank-1 approximation for SDR solutions
+│   └── find_thresholds.m    ← Compute QoS thresholds
+│
+├── channel/                 ← Channel models
+│   ├── channelSim.m         ← Full uplink/downlink channel simulation
+│   ├── sensing_channel.m    ← UPA steering vectors and A_0 for ISAC radar
+│   ├── rician_channel.m     ← Rician fading channel generation
+│   ├── updateChannels.m     ← Channel update at new UAV location
+│   └── prob_LoS.m           ← LoS probability (urban air-to-ground model)
+│
+├── metrics/                 ← Performance metric calculations
+│   ├── metrics_calc.m       ← UCSR, DCSR, CRLB, SINR for given P/V/W
+│   ├── observed_metrics.m   ← Lookup metrics from buffer (with caching)
+│   ├── calculate_utility.m  ← Episode-level utility (post-processing)
+│   ├── calc_U1.m            ← U1 (total transmission power)
+│   ├── calc_power.m         ← Instantaneous power breakdown
+│   └── Calc_Utility_Updated.m← Updated utility calculation helper
+│
+├── utils/                   ← General-purpose utilities
+│   ├── flightPow.m          ← UAV rotary-wing flight power model
+│   ├── loc_init.m           ← Ground terminal and user location initialisation
+│   ├── generateObstacles.m  ← Random obstacle placement in the region
+│   ├── eveLocationKey.m     ← String key for buffer indexing by Eve location
+│   ├── getResultsFolderPath.m← Build result save-path from lambda/network params
+│   ├── getEpisodeTrajName.m ← Build episode trajectory filename
+│   ├── fill_to_maxIter.m    ← Pad result arrays to fixed length
+│   ├── helperfunc.m         ← Miscellaneous shared helpers
+│   └── plot_rewards.m       ← Quick reward-curve helper
+│
+├── plots/                   ← Plotting scripts (paper figures)
+│   ├── Plot_Trajectories.m  ← 3-D trajectory comparison (Fig. X in paper)
+│   ├── Plot_reward_Episode.m← Episodic reward & utility curves
+│   ├── Plot_Utility_Episode.m← Per-episode utility breakdown
+│   ├── Plot_Utility.m       ← Final utility comparison across lambda
+│   ├── Plot_Convergence.m   ← SCA convergence plot
+│   ├── Plot_convergence.m   ← DRL training convergence plot
+│   ├── Plot_FlightPower.m   ← Flight power vs. velocity curves
+│   ├── Plot_RewardVisulization.m ← Reward landscape heatmap
+│   ├── visualize_system.m   ← 3-D scene (UAV, BS, users)
+│   └── visualize_system_obstacle.m ← Scene with obstacle cylinders
+│
+├── benchmarks/              ← Benchmark / comparison plots
+│   ├── CompPlot.m           ← Algorithm comparison across baselines
+│   ├── Metrics_Comp.m       ← UCSR/DCSR/CRLB metrics comparison
+│   └── Plot_NoiseScale.m    ← Noise scaling sensitivity analysis
+│
+└── data/                    ← Large data files (NOT tracked by Git)
+    └── .gitkeep             ← Placeholder — see Data section below
 ```
-
----
-
-## Dependencies
-
-| Dependency | Version | Purpose |
-|------------|---------|---------|
-| MATLAB | ≥ R2022b | Core language |
-| [CVX](http://cvxr.com/cvx/) | ≥ 2.2 | Convex optimisation (SDP solver) |
-| Phased Array System Toolbox | bundled with MATLAB | `phased.URA`, `phased.SteeringVector` |
-| Statistics and Machine Learning Toolbox | bundled | `randn`, distribution utilities |
-| Reinforcement Learning Toolbox *(optional)* | bundled | Required only for `script_utilityEpisodePlot.m` |
 
 ---
 
 ## Getting Started
 
-### 1. Clone the repository
+### Requirements
 
-```bash
-git clone https://github.com/<your-username>/SecISAC-Mamaghani.git
-cd SecISAC-Mamaghani
-```
+| Software | Version |
+|---|---|
+| MATLAB | R2022b or later |
+| Reinforcement Learning Toolbox | Required |
+| Optimization Toolbox | Required |
+| Phased Array System Toolbox | Required (for UPA steering vectors) |
+| CVX | Required for SCA-based resource optimisation |
 
-### 2. Install CVX
+Install CVX from [cvxr.com](http://cvxr.com/cvx/).
 
-Download from [http://cvxr.com/cvx/download/](http://cvxr.com/cvx/download/) and follow the installation guide. Then, inside MATLAB:
+### Data Files
 
-```matlab
-cd /path/to/cvx
-cvx_setup
-```
+The `data/` folder must contain the following `.mat` files **before** running any script. These are not tracked by Git due to their size.
 
-### 3. Add repository paths
+| File | Description | How to obtain |
+|---|---|---|
+| `myBuffer.mat` | Pre-computed optimal resource allocation (P, V, W) and metrics for every UAV grid location | Run `optimization/bufferCalc.m` (takes hours — see note below) |
+| `myGroundTerminalDist.mat` | BS, uplink user and downlink user 3-D locations | Run `utils/loc_init.m` and save |
+| `ObstacleLocs.mat` | Obstacle centres and radii | Run `utils/generateObstacles.m` and save |
 
-Open MATLAB, navigate to the repository root, and run:
+> ⚠️ **Buffer generation is computationally expensive.** `bufferCalc.m` calls `solveOptimization.m` for every point in the 3-D Eve/UAV grid (~6 800 locations). Pre-generated files will be made available via the paper's data repository link.
 
-```matlab
-setup          % Adds all src/ subdirectories to the MATLAB path
-```
-
-### 4. Provide data files
-
-Place the following pre-generated MAT files in the `data/` folder:
-
-| File | Contents |
-|------|----------|
-| `myGroundTerminalDist.mat` | `groundTerminalsLoc` cell: `{RBS_loc, ul_users_loc, dl_users_loc}` |
-| `myBuffer.mat` *(optional)* | `buffer` variable for RL training replay |
-| `visitedPositionsPerEpisode_*.mat` *(optional)* | Episode trajectory results from RL training |
-
-> **Note:** The `.mat` data files are not included in the repository due to size constraints. Contact the authors or regenerate them using the channel simulation functions.
-
-### 5. Run a simulation
+### Installation
 
 ```matlab
-% Example: reproduce SCA convergence figure
-run('scripts/script_convergencePlot.m')
+% 1. Clone the repository
+% git clone https://github.com/<your-username>/SecureISAC-UAV-DRL.git
+
+% 2. Open MATLAB and navigate to the project root
+cd('path/to/SecureISAC-UAV-DRL')
+
+% 3. Add all subfolders to the MATLAB path (run once per session)
+setup
+
+% 4. Place required .mat files in data/
+
+% 5. Run the main script
+main
 ```
 
 ---
 
-## Key Scripts
+## Usage
 
-### `script_convergencePlot.m`
-Runs the SCA loop for **Proposed** (with AN) and **Without AN** benchmarks and plots:
-- NPC convergence (log-scale)
-- UCSR, DCSR, CRLB vs iteration (with threshold lines)
+### Training the DDQN Agent
 
-### `script_cnrSweepPlot.m`
-Sweeps the Clutter-to-Noise Ratio (CNR) from −10 dB to +3 dB and plots the converged NPC and individual power components (DL, AN/radar, UL).
+Open `main.m` and set the control flags:
 
-### `script_benchmarkComparison.m`
-Side-by-side comparison of both benchmarks for a fixed channel snapshot with up to `maxIter` SCA iterations.
-
-### `script_utilityEpisodePlot.m`
-Plots the smoothed episode utility U2 curves for multiple λ values, comparing the proposed UAV strategy against the baseline.
-
----
-
-## System Model Summary
-
-```
-         ┌──────────────────────────────────────────────┐
-         │          Radar Base Station (R-BS)            │
-         │   Mt = 25 Tx antennas  |  Mr = 25 Rx ant.    │
-         │   f_c = 10 GHz         |  B  = 30 MHz         │
-         └──────┬────────┬────────────────────┬──────────┘
-                │ DL V_k │ AN W               │ Sensing A_0
-         ┌──────┘        └──────┐             │
-         ▼                      ▼             ▼
-   K=10 DL Users           Eavesdropper   UAV Target
-                            (Eve)          (Player 2)
-         ▲
-         │ P_l (UL)
-   L=5 UL Users
+```matlab
+doTraining       = 1;    % 1: train from scratch
+doSimulation     = 1;    % 1: simulate after training
+lambda           = 0.5;  % trade-off weight  ∈ {0, 0.5, 1}
+networkSelection = 1;    % 1: proposed | 0: benchmark
+withObstacle     = 1;    % 1: obstacles enabled
+maxStep_init     = 1e3;  % number of training episodes
 ```
 
-**Optimisation variables:** `{V_k}` (DL beamforming), `W` (AN / radar covariance), `P` (UL power)  
-**Objective:** Minimise NPC = Tr(ΣV_k) + Tr(W) + Σp_l  
-**Constraints:**
-- DCSR ≥ ρ_dl (downlink secrecy rate)
-- UCSR ≥ ρ_ul (uplink secrecy rate)
-- CRLB ≤ ρ_est (radar estimation quality)
+Then run:
+```matlab
+>> setup
+>> main
+```
+
+Trained agents are saved automatically to `results/` (created on first run).
+
+### Resuming Training
+
+```matlab
+doTraining = 2;          % resume from last checkpoint
+maxStep_further = 2e3;   % additional episodes
+```
+
+### Simulation Only
+
+```matlab
+doTraining   = 3;   % load saved agent, skip training
+doSimulation = 1;   % run simulation and plot trajectory
+```
+
+### Generating Paper Figures
+
+Each plotting script is self-contained. After training agents for `lambda ∈ {0, 0.5, 1}`:
+
+```matlab
+>> setup
+>> Plot_Trajectories        % 3-D trajectory figure
+>> Plot_reward_Episode      % training reward / utility curves
+>> Plot_Utility_Episode     % per-episode utility breakdown
+>> CompPlot                 % benchmark comparison
+```
 
 ---
 
-## Configuration
+## System Model
 
-All system parameters are centralised in `src/config/sysParams.m`. Key parameters:
+The ISAC system consists of:
 
-| Parameter | Symbol | Default | Description |
-|-----------|--------|---------|-------------|
-| `L` | L | 5 | Number of uplink users |
-| `K` | K | 10 | Number of downlink users |
-| `Mt` | Mt | 25 | Transmit antennas (5×5 UPA) |
-| `Mr` | Mr | 25 | Receive antennas (5×5 UPA) |
-| `fc` | f_c | 10 GHz | Carrier frequency |
-| `B` | B | 30 MHz | Signal bandwidth |
-| `rho_ul` | ρ_ul | 0.1 | Uplink secrecy rate threshold |
-| `rho_dl` | ρ_dl | 0.5 | Downlink secrecy rate threshold |
-| `rho_est` | ρ_est | 0.001 | CRLB sensing threshold |
-| `epsilon` | ε | 1e-3 | SCA convergence tolerance |
-| `Pmax` | P_max | 100 W | Maximum uplink user power |
+- A multi-antenna **Base Station (BS)** equipped with a UPA serving:
+  - `L = 5` uplink (sensing-aided) users
+  - `K = 10` downlink users
+- A **UAV target / eavesdropper (Eve)** navigating the 3-D region
+- A **10×10 horizontal grid** with 5 altitude layers; cell size = 20 m
+
+**Optimised variables:**
+- `P` — uplink power allocation vector (L×1)
+- `V` — downlink beamforming covariance matrices (K×K×K)
+- `W` — radar / AN covariance matrix
+
+**UAV trajectory (MDP):**
+- State: (x, y, z, dist-to-goal, time-step)
+- Action: 6 directions × 2 speed levels + hover = 13 discrete actions
+- Reward: main utility + distance shaping + loop penalty + constraint penalties
 
 ---
 
-## Reproducing Paper Results
+## Key Files Reference
 
-| Figure | Script |
-|--------|--------|
-| Convergence (NPC, UCSR, DCSR, CRLB vs iteration) | `script_convergencePlot.m` |
-| NPC vs CNR sweep | `script_cnrSweepPlot.m` |
-| Proposed vs No-AN benchmark | `script_benchmarkComparison.m` |
-| UAV utility U2 vs training episode | `script_utilityEpisodePlot.m` |
+| Script | Purpose |
+|---|---|
+| `main.m` | Train / simulate DDQN agent |
+| `setup.m` | Configure MATLAB path |
+| `config/sysParams.m` | All physical-layer constants |
+| `config/MDPsimulationParams.m` | Grid, speed, timing parameters |
+| `environment/createEnv.m` | MDP environment factory |
+| `environment/stepFunctionD.m` | Discrete step: transition + reward |
+| `agent/createDDQNAgent.m` | DDQN with ε-greedy exploration |
+| `optimization/bufferCalc.m` | Offline buffer builder (DO NOT re-run) |
+| `optimization/OptimResources.m` | SCA resource optimisation (CVXPY) |
+| `plots/Plot_Trajectories.m` | 3-D trajectory visualisation |
+| `benchmarks/CompPlot.m` | Comparison with baselines |
 
 ---
 
@@ -219,28 +241,17 @@ All system parameters are centralised in `src/config/sysParams.m`. Key parameter
 If you use this code in your research, please cite:
 
 ```bibtex
-@ARTICLE{11172669,
-  author    = {Mamaghani, Milad Tatar and Zhou, Xiangyun and Yang, Nan and Lee Swindlehurst, A.},
-  journal   = {IEEE Journal on Selected Areas in Communications},
-  title     = {Securing Integrated Sensing and Communication Against a Mobile Adversary:
-               A Stackelberg Game With Deep Reinforcement Learning},
-  year      = {2026},
-  volume    = {44},
-  pages     = {942--958},
-  doi       = {10.1109/JSAC.2025.3611404}
+@article{mamaghani2025secureisac,
+  title   = {Security-Aware UAV Trajectory Design for Integrated Sensing and
+             Communication Systems via Deep Reinforcement Learning},
+  author  = {Mamaghani, ...},
+  journal = {...},
+  year    = {2025},
 }
 ```
-
-Or use the `CITATION.cff` file (GitHub *Cite this repository* button).
 
 ---
 
 ## License
 
-This project is released under the [MIT License](LICENSE). You are free to use, modify, and distribute this code for academic and non-commercial purposes, with appropriate attribution.
-
----
-
-## Contact
-
-For questions, bugs, or collaboration inquiries, please open a [GitHub Issue](../../issues) or contact the corresponding author via the paper's contact information.
+This project is released under the MIT License. See `LICENSE` for details.

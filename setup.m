@@ -1,26 +1,52 @@
-%% setup.m — Add all SecISAC source directories to the MATLAB path.
+%% setup.m
+% Run this script ONCE at the start of a MATLAB session to add all
+% project subfolders to the MATLAB path.
 %
-%   Run this script once from the repository root before executing any
-%   other script or function in this project.
+% Usage:
+%   >> setup
+%   >> main         % then run any entry-point script
 %
-%   Usage:
-%       >> cd /path/to/SecISAC-Mamaghani
-%       >> setup
-%
-%   After setup, all src/ subdirectories are on the MATLAB path for the
-%   current session.  To make the paths permanent, call savepath() after
-%   running this script.
+% The paths are NOT saved permanently; run setup.m again if you restart
+% MATLAB.
 
-repoRoot = fileparts(mfilename('fullpath'));
+clc;
+projectRoot = fileparts(mfilename('fullpath'));
 
-addpath(fullfile(repoRoot, 'src', 'config'));
-addpath(fullfile(repoRoot, 'src', 'channels'));
-addpath(fullfile(repoRoot, 'src', 'optimization'));
-addpath(fullfile(repoRoot, 'src', 'metrics'));
-addpath(fullfile(repoRoot, 'src', 'uav'));
-addpath(fullfile(repoRoot, 'src', 'utils'));
-addpath(fullfile(repoRoot, 'scripts'));
-addpath(fullfile(repoRoot, 'data'));
+subfolders = {
+    'config',
+    'environment',
+    'agent',
+    'optimization',
+    'channel',
+    'metrics',
+    'utils',
+    'plots',
+    'benchmarks',
+};
 
-fprintf('[setup] SecISAC paths added successfully.\n');
-fprintf('[setup] Repository root: %s\n', repoRoot);
+for i = 1:numel(subfolders)
+    p = fullfile(projectRoot, subfolders{i});
+    if isfolder(p)
+        addpath(p);
+    else
+        warning('setup:missingFolder', 'Subfolder not found: %s', p);
+    end
+end
+
+% Create data directory if it doesn't exist
+dataDir = fullfile(projectRoot, 'data');
+if ~isfolder(dataDir)
+    mkdir(dataDir);
+end
+
+fprintf('==============================================\n');
+fprintf('  SecureISAC-UAV-DRL — paths configured.\n');
+fprintf('  Project root: %s\n', projectRoot);
+fprintf('==============================================\n');
+fprintf('  Next steps:\n');
+fprintf('    1. Place required .mat files in data/\n');
+fprintf('       - myBuffer.mat\n');
+fprintf('       - myGroundTerminalDist.mat\n');
+fprintf('       - ObstacleLocs.mat\n');
+fprintf('    2. Run main.m to train or simulate.\n');
+fprintf('==============================================\n');
