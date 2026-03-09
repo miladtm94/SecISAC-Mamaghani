@@ -1,6 +1,4 @@
-# SecureISAC-UAV-DRL
-
-**Deep Reinforcement Learning for Secure UAV Trajectory Design in ISAC Systems**
+# Securing Integrated Sensing and Communication Against a Mobile Adversary: A Stackelberg Game With Deep Reinforcement Learning #
 
 This repository contains the MATLAB simulation code for the paper:
 
