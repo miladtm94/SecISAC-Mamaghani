@@ -4,9 +4,14 @@
 
 This repository contains the MATLAB simulation code for the paper:
 
-> *"Security-Aware UAV Trajectory Design for Integrated Sensing and Communication Systems via Deep Reinforcement Learning"*
+> *Milad Tatar Mamaghani et el., "[Securing Integrated Sensing and Communication Against a Mobile Adversary: A Stackelberg Game With Deep Reinforcement Learning](https://ieeexplore.ieee.org/abstract/document/11172669),"  IEEE Journal on Selected Areas in Communications, vol. 44, pp. 942-958, 2026.*
 
-The code implements a Double DQN (DDQN) agent that jointly optimises the UAV trajectory and physical-layer resource allocation to maximise an ISAC utility while minimising flight power, subject to uplink/downlink secrecy, CRLB-based sensing, and obstacle avoidance constraints.
+## Abstract of Article ##
+In this paper, we study a secure integrated sensing and communication (ISAC) system employing a full-duplex base station with sensing capabilities against a mobile proactive adversarial target—a malicious uncrewed aerial vehicle (M-UAV). We develop a game-theoretic model to enhance communication security, radar sensing accuracy, and power efficiency. The interaction between the legitimate network and the mobile adversary is formulated as a non-cooperative Stackelberg game (NSG), where the M-UAV acts as the leader and strategically adjusts its trajectory to improve its eavesdropping ability while conserving power and avoiding obstacles. In response, the legitimate network, acting as the follower, dynamically allocates resources to minimize network power usage while ensuring required secrecy rates and sensing performance. To address this challenging problem, we propose a low-complexity successive convex approximation (SCA) method for network resource optimization combined with a deep reinforcement learning (DRL) algorithm for adaptive M-UAV trajectory planning through sequential interactions and learning. Simulation results demonstrate the efficacy of the proposed method in addressing security challenges of dynamic ISAC systems in 6G, i.e., achieving a Stackelberg equilibrium with robust performance while mitigating the adversary’s ability to intercept network signals.
+
+
+## Implementation  ##
+The code implements a Double DQN (DDQN) agent that jointly optimises the M-UAV trajectory and physical-layer resource allocation to maximise an ISAC utility while minimising flight power, subject to uplink/downlink secrecy, CRLB-based sensing, and obstacle avoidance constraints.
 
 ---
 
@@ -242,11 +247,14 @@ If you use this code in your research, please cite:
 
 ```bibtex
 @article{mamaghani2025secureisac,
-  title   = {Security-Aware UAV Trajectory Design for Integrated Sensing and
-             Communication Systems via Deep Reinforcement Learning},
-  author  = {Mamaghani, ...},
-  journal = {...},
-  year    = {2025},
+  author={Tatar Mamaghani, Milad and Zhou, Xiangyun and Yang, Nan and Lee Swindlehurst, A.},
+  journal={IEEE Journal on Selected Areas in Communications}, 
+  title={Securing Integrated Sensing and Communication Against a Mobile Adversary: A Stackelberg Game With Deep Reinforcement Learning}, 
+  year={2026},
+  volume={44},
+  number={},
+  pages={942-958},
+ doi={10.1109/JSAC.2025.3611404}}
 }
 ```
 
